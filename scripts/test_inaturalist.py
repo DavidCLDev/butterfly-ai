@@ -1,4 +1,4 @@
-"""Prueba pequeña de consulta y descarga desde la API pública de iNaturalist."""
+from utils import get_images_ids
 
 from pathlib import Path
 from urllib.parse import urlparse
@@ -7,9 +7,20 @@ import requests
 
 
 API_URL = "https://api.inaturalist.org/v1/observations"
-SPECIES = "Danaus plexippus"
+SPECIES = [
+    "Danaus plexippus",
+    "Heliconius erato",
+    "Morpho helenor",
+    "Papilo Polyxenes",
+    "Dryas iulia",
+    "Ascia monuste",
+    "Phoebis sennae",
+    "Vanessa virginiensis",
+    "Battus polydamas",
+    "Anartia amathea"
+]
 COLOMBIA_PLACE_ID = 7196
-RESULTS_LIMIT = 5
+RESULTS_LIMIT = 2
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data" / "raw" / "inaturalist"
 
@@ -60,19 +71,27 @@ def download_photo(observation_id: int, photo_url: str) -> Path:
 
 
 def main() -> None:
+    images_ids = get_images_ids()
     print("Consultando iNaturalist...")
     parameters = {
-        "taxon_name": SPECIES,
         "place_id": COLOMBIA_PLACE_ID,
         "per_page": RESULTS_LIMIT,
-        "order_by": "observed_on",
+        "order_by": "random",
         "order": "desc",
     }
+    results = []
+    project_root = Path(__file__).resolve().parents[1]
 
     try:
-        response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
-        response.raise_for_status()
-        observations = response.json().get("results", [])
+        for taxon_name in SPECIES:
+            parameters["taxon_name"] = taxon_name
+            response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            result = response.json().get("results", [])
+            for i, observation in enumerate(result):
+                if observation.get("id", "Desconocido") in images_ids:
+                    result.pop(i)
+            results.append(result)
     except requests.RequestException as error:
         print(f"No fue posible consultar la API: {error}")
         return
@@ -80,47 +99,45 @@ def main() -> None:
         print("La API respondió con contenido que no es JSON válido.")
         return
 
-    print(f"Observaciones encontradas: {len(observations)}")
-    if not observations:
+    if not results:
         print("No hubo resultados para la especie y ubicación seleccionadas.")
         return
 
     first_photo: tuple[int, str] | None = None
-    for observation in observations:
-        observation_id = observation.get("id", "Desconocido")
-        taxon = observation.get("taxon") or {}
-        scientific_name = taxon.get("name", "No identificada")
-        photos = observation.get("photos") or []
-        photo_url = photo_url_from(observation)
+    for observations in results:
+        for observation in observations:
+            observation_id = observation.get("id", "Desconocido")
+            taxon = observation.get("taxon") or {}
+            scientific_name = taxon.get("name", "No identificada")
+            photos = observation.get("photos") or []
+            photo_url = photo_url_from(observation)
 
-        print(f"\nObservación: {observation_id}")
-        print(f"Especie: {scientific_name}")
-        print(f"Fecha: {observation.get('observed_on') or 'No disponible'}")
-        print(f"Ubicación: {location_from(observation)}")
-        print(f"Fotografías: {len(photos)}")
-        print(f"URL: {photo_url or 'No disponible'}")
+            print(f"\nObservación: {observation_id}")
+            print(f"Especie: {scientific_name}")
+            print(f"Fecha: {observation.get('observed_on') or 'No disponible'}")
+            print(f"Ubicación: {location_from(observation)}")
+            print(f"Fotografías: {len(photos)}")
+            print(f"URL: {photo_url or 'No disponible'}")
 
-        if first_photo is None and isinstance(observation_id, int) and photo_url:
-            first_photo = (observation_id, photo_url)
+            if isinstance(observation_id, int) and photo_url:
+                try:
+                    print("Descargando...")
+                    saved_path = download_photo(observation_id, photo_url)
+                    print("Imagen guardada en:")
+                    print(saved_path.relative_to(project_root))
+                except requests.RequestException as error:
+                    print(f"No fue posible descargar la fotografía: {error}")
+                    return
+                except OSError as error:
+                    print(f"No fue posible guardar la fotografía: {error}")
+                    return
+
+            if first_photo is None and isinstance(observation_id, int) and photo_url:
+                first_photo = (observation_id, photo_url)
 
     if first_photo is None:
         print("\nNinguna de las observaciones contiene una fotografía descargable.")
         return
-
-    observation_id, photo_url = first_photo
-    print("\nDescargando una fotografía de prueba...")
-    try:
-        saved_path = download_photo(observation_id, photo_url)
-    except requests.RequestException as error:
-        print(f"No fue posible descargar la fotografía: {error}")
-        return
-    except OSError as error:
-        print(f"No fue posible guardar la fotografía: {error}")
-        return
-
-    project_root = Path(__file__).resolve().parents[1]
-    print("Imagen guardada en:")
-    print(saved_path.relative_to(project_root))
 
 
 if __name__ == "__main__":
