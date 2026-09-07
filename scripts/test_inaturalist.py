@@ -2,28 +2,38 @@ from utils import get_images_ids
 
 from pathlib import Path
 from urllib.parse import urlparse
+import random
 
 import requests
 
 
 API_URL = "https://api.inaturalist.org/v1/observations"
 SPECIES = [
-    "Danaus plexippus",
-#    "Heliconius erato",
-    "Morpho helenor",
-    "Papilio Polyxenes",
-    "Dryas iulia",
+    #"Anartia amathea",
     "Ascia monuste",
-    "Phoebis sennae",
-    "Vanessa virginiensis",
-    "Battus polydamas",
-    "Anartia amathea"
+    #"Battus polydamas",
+    "Danaus plexippus",
+    #"Dryas iulia",
+    "Heliconius erato",
+    "Morpho helenor",
+    #"Papilio Polyxenes",
+    #"Phoebis sennae",
+    #"Vanessa virginiensis",
 ]
 COLOMBIA_PLACE_ID = 7196
-RESULTS_LIMIT = 25
+RESULTS_LIMIT = 9
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data"
 
+class DuplicateImage(Exception):
+    def __init__(self):
+        self.message = "Ya existe una imagen con el mismo id"
+        super().__init__(self.message)
+
+class CopyrightImage(Exception):
+    def __init__(self):
+        self.message = "La imagen está protegida por copyright"
+        super().__init__(self.message)
 
 def location_from(observation: dict) -> str:
     """Devuelve una ubicación legible sin asumir que la observación tiene coordenadas."""
@@ -53,9 +63,8 @@ def unused_path(species, directory: Path, observation_id: int, photo_url: str) -
 
     candidate = directory / species / f"{species}_{observation_id}{suffix}"
     number = 1
-    while candidate.exists():
-        candidate = directory / species / f"{species}_{observation_id}_{number}{suffix}"
-        number += 1
+    if candidate.exists():
+        raise DuplicateImage()
     return candidate
 
 
@@ -69,32 +78,46 @@ def download_photo(species: str, observation_id: int, photo_url: str) -> Path:
     destination.write_bytes(response.content)
     return destination
 
-
 def main() -> None:
     print("Consultando iNaturalist...")
     parameters = {
-        "place_id": COLOMBIA_PLACE_ID,
         "per_page": RESULTS_LIMIT,
         "term_id": 1,
         "term_value_id": 2,
+        "page": 1,
         "order_by": "random",
-        "order": "desc",
+        "order": "desc"
     }
     results = {}
     project_root = Path(__file__).resolve().parents[1]
 
     try:
         for taxon_name in SPECIES:
+            non_duplicates = []
             folder = get_folder(taxon_name)
-            images_ids = get_images_ids(OUTPUT_DIRECTORY / folder)
             parameters["taxon_name"] = taxon_name
-            response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
-            response.raise_for_status()
-            result = response.json().get("results", [])
-            for i, observation in enumerate(result):
-                if observation.get("id", "Desconocido") in images_ids:
-                    result.pop(i)
-            results[folder] = result
+            existing_ids = get_images_ids(OUTPUT_DIRECTORY / folder)
+            attempts = 0
+            observations = 0
+            print("============================")
+            print(taxon_name)
+            print("============================")
+            while not non_duplicates and attempts < 10:
+                attempts += 1
+                print(f"Intento {attempts} de recolectar observaciones")
+                parameters["page"] = attempts
+                response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
+                response.raise_for_status()
+                result = response.json().get("results", [])
+                if not result:
+                    break
+                observations += len(result)
+                for observation in result:
+                    if observation.get("id") in existing_ids:
+                        continue
+                    non_duplicates.append(observation)
+            print("Número de total de observaciones procesadas:", observations)
+            results[folder] = non_duplicates
     except requests.RequestException as error:
         print(f"No fue posible consultar la API: {error}")
         return
@@ -107,7 +130,9 @@ def main() -> None:
         return
 
     first_photo: tuple[int, str] | None = None
+    contador = 0
     for folder, observations in results.items():
+        existing_ids = get_images_ids(OUTPUT_DIRECTORY / folder)
         for observation in observations:
             observation_id = observation.get("id", "Desconocido")
             taxon = observation.get("taxon") or {}
@@ -117,6 +142,7 @@ def main() -> None:
 
             if "copyright-infringement" in photo_url:
                 print("Foto descartada: contenido retirado por copyright")
+                continue
 
             print(f"\nObservación: {observation_id}")
             print(f"Especie: {scientific_name}")
@@ -124,6 +150,10 @@ def main() -> None:
             print(f"Ubicación: {location_from(observation)}")
             print(f"Fotografías: {len(photos)}")
             print(f"URL: {photo_url or 'No disponible'}")
+            
+            if observation_id in existing_ids:
+                print("Observación duplicada...")
+                continue
 
             if isinstance(observation_id, int) and photo_url:
                 try:
@@ -137,9 +167,14 @@ def main() -> None:
                 except OSError as error:
                     print(f"No fue posible guardar la fotografía: {error}")
                     return
+                except DuplicateImage as duplicate:
+                    print(duplicate)
 
             if first_photo is None and isinstance(observation_id, int) and photo_url:
                 first_photo = (observation_id, photo_url)
+            contador += 1
+    
+    print("Total imágenes descargadas:", contador)
 
     if first_photo is None:
         print("\nNinguna de las observaciones contiene una fotografía descargable.")
