@@ -9,19 +9,19 @@ import requests
 
 API_URL = "https://api.inaturalist.org/v1/observations"
 SPECIES = [
-    #"Anartia amathea",
+    "Anartia amathea",
     "Ascia monuste",
-    #"Battus polydamas",
+    "Battus polydamas",
     "Danaus plexippus",
-    #"Dryas iulia",
+    "Dryas iulia",
     "Heliconius erato",
     "Morpho helenor",
-    #"Papilio Polyxenes",
-    #"Phoebis sennae",
-    #"Vanessa virginiensis",
+    "Papilio Polyxenes",
+    "Phoebis sennae",
+    "Vanessa virginiensis",
 ]
 COLOMBIA_PLACE_ID = 7196
-RESULTS_LIMIT = 9
+RESULTS_LIMIT = 1
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data"
 
@@ -40,7 +40,8 @@ def location_from(observation: dict) -> str:
     if observation.get("place_guess"):
         return observation["place_guess"]
 
-    coordinates = observation.get("geojson", {}).get("coordinates")
+    geojson = observation.get("geojson") or {}
+    coordinates = geojson.get("coordinates")
     if coordinates and len(coordinates) >= 2:
         longitude, latitude = coordinates[:2]
         return f"{latitude}, {longitude}"
@@ -116,7 +117,7 @@ def main() -> None:
                     if observation.get("id") in existing_ids:
                         continue
                     non_duplicates.append(observation)
-            print("Número de total de observaciones procesadas:", observations)
+            print("Número de observaciones procesadas:", observations)
             results[folder] = non_duplicates
     except requests.RequestException as error:
         print(f"No fue posible consultar la API: {error}")
