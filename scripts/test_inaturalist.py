@@ -141,6 +141,10 @@ def main() -> None:
             photos = observation.get("photos") or []
             photo_url = photo_url_from(observation)
 
+            if not photo_url:
+                print("No contiene url de las fotos")
+                continue
+
             if "copyright-infringement" in photo_url:
                 print("Foto descartada: contenido retirado por copyright")
                 continue
