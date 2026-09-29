@@ -1,5 +1,4 @@
-from utils import get_images_ids
-
+import csv
 from pathlib import Path
 from urllib.parse import urlparse
 import random
@@ -21,9 +20,10 @@ SPECIES = [
     "Vanessa virginiensis",
 ]
 COLOMBIA_PLACE_ID = 7196
-RESULTS_LIMIT = 1
+RESULTS_LIMIT = 10
 REQUEST_TIMEOUT_SECONDS = 20
-OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data"
+OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data" / "raw"
+CSV_DATA = Path(__file__).resolve().parents[1] / "data" / "registro_imagenes.csv"
 
 class DuplicateImage(Exception):
     def __init__(self):
@@ -77,9 +77,22 @@ def download_photo(species: str, observation_id: int, photo_url: str) -> Path:
     response = requests.get(photo_url, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     destination.write_bytes(response.content)
+    insert_id(species, observation_id)
     return destination
 
+def insert_id(folder, observation_id):
+    with open(CSV_DATA, mode="a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([folder, observation_id])
+
 def main() -> None:
+
+    existing_ids = set()
+    with open(CSV_DATA, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            existing_ids.add((row["especie"], str(row["id_foto"])))
+
     print("Consultando iNaturalist...")
     parameters = {
         "per_page": RESULTS_LIMIT,
@@ -97,7 +110,6 @@ def main() -> None:
             non_duplicates = []
             folder = get_folder(taxon_name)
             parameters["taxon_name"] = taxon_name
-            existing_ids = get_images_ids(OUTPUT_DIRECTORY / folder)
             attempts = 0
             observations = 0
             print("============================")
@@ -106,7 +118,7 @@ def main() -> None:
             while not non_duplicates and attempts < 10:
                 attempts += 1
                 print(f"Intento {attempts} de recolectar observaciones")
-                parameters["page"] = attempts
+                #parameters["page"] = attempts
                 response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
                 response.raise_for_status()
                 result = response.json().get("results", [])
@@ -133,7 +145,6 @@ def main() -> None:
     first_photo: tuple[int, str] | None = None
     contador = 0
     for folder, observations in results.items():
-        existing_ids = get_images_ids(OUTPUT_DIRECTORY / folder)
         for observation in observations:
             observation_id = observation.get("id", "Desconocido")
             taxon = observation.get("taxon") or {}
@@ -156,7 +167,7 @@ def main() -> None:
             print(f"Fotografías: {len(photos)}")
             print(f"URL: {photo_url or 'No disponible'}")
             
-            if observation_id in existing_ids:
+            if (folder, observation_id) in existing_ids:
                 print("Observación duplicada...")
                 continue
 
@@ -177,6 +188,9 @@ def main() -> None:
 
             if first_photo is None and isinstance(observation_id, int) and photo_url:
                 first_photo = (observation_id, photo_url)
+            
+            existing_ids.add((folder, observation_id))
+
             contador += 1
     
     print("Total imágenes descargadas:", contador)
