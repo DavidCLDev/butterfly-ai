@@ -9,34 +9,34 @@ import requests
 API_URL = "https://api.inaturalist.org/v1/observations"
 SPECIES = [
     "Anartia amathea",
-    "Ascia monuste",
-    "Battus polydamas",
-    "Danaus plexippus",
-    "Dryas iulia",
-    "Heliconius erato",
-    "Morpho helenor",
-    "Papilio Polyxenes",
-    "Phoebis sennae",
-    "Vanessa virginiensis",
+    #"Ascia monuste",
+    #"Battus polydamas",
+    #"Danaus plexippus",
+    #"Dryas iulia",
+    #"Heliconius erato",
+    #"Morpho helenor",
+    #"Papilio Polyxenes",
+    #"Phoebis sennae",
+    #"Vanessa virginiensis",
 ]
 COLOMBIA_PLACE_ID = 7196
-RESULTS_LIMIT = 10
+RESULTS_LIMIT = 1
 REQUEST_TIMEOUT_SECONDS = 20
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / "data" / "raw"
-CSV_DATA = Path(__file__).resolve().parents[1] / "data" / "registro_imagenes.csv"
+CSV_DATA = (
+    Path(__file__).resolve().parents[1] /
+    "data" / "registro_imagenes.csv"
+)
 
 class DuplicateImage(Exception):
     def __init__(self):
         self.message = "Ya existe una imagen con el mismo id"
         super().__init__(self.message)
 
-class CopyrightImage(Exception):
-    def __init__(self):
-        self.message = "La imagen está protegida por copyright"
-        super().__init__(self.message)
 
 def location_from(observation: dict) -> str:
-    """Devuelve una ubicación legible sin asumir que la observación tiene coordenadas."""
+    """Devuelve una ubicación legible sin asumir que la observación tiene
+    coordenadas."""
     if observation.get("place_guess"):
         return observation["place_guess"]
 
@@ -91,7 +91,7 @@ def main() -> None:
     with open(CSV_DATA, mode="r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            existing_ids.add((row["especie"], str(row["id_foto"])))
+            existing_ids.add((row["especie"], int(row["id_foto"])))
 
     print("Consultando iNaturalist...")
     parameters = {
@@ -118,15 +118,21 @@ def main() -> None:
             while not non_duplicates and attempts < 10:
                 attempts += 1
                 print(f"Intento {attempts} de recolectar observaciones")
-                #parameters["page"] = attempts
-                response = requests.get(API_URL, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS)
+                parameters["page"] = attempts
+                response = requests.get(
+                    API_URL,
+                    params=parameters,
+                    timeout=REQUEST_TIMEOUT_SECONDS
+                )
                 response.raise_for_status()
                 result = response.json().get("results", [])
                 if not result:
                     break
                 observations += len(result)
                 for observation in result:
-                    if observation.get("id") in existing_ids:
+                    observation_id = observation.get("id", "Desconocido")
+                    if (not isinstance(observation_id, int) or
+                    (folder, observation_id) in existing_ids):
                         continue
                     non_duplicates.append(observation)
             print("Número de observaciones procesadas:", observations)
@@ -174,7 +180,11 @@ def main() -> None:
             if isinstance(observation_id, int) and photo_url:
                 try:
                     print("Descargando...")
-                    saved_path = download_photo(folder, observation_id, photo_url)
+                    saved_path = download_photo(
+                        folder,
+                        observation_id,
+                        photo_url
+                    )
                     print("Imagen guardada en:")
                     print(saved_path.relative_to(project_root))
                 except requests.RequestException as error:
@@ -186,7 +196,9 @@ def main() -> None:
                 except DuplicateImage as duplicate:
                     print(duplicate)
 
-            if first_photo is None and isinstance(observation_id, int) and photo_url:
+            if (first_photo is None and
+                isinstance(observation_id, int) and
+                photo_url):
                 first_photo = (observation_id, photo_url)
             
             existing_ids.add((folder, observation_id))
@@ -196,7 +208,10 @@ def main() -> None:
     print("Total imágenes descargadas:", contador)
 
     if first_photo is None:
-        print("\nNinguna de las observaciones contiene una fotografía descargable.")
+        print(
+            "\nNinguna de las observaciones",
+            " contiene una fotografía descargable."
+        )
         return
 
 def get_folder(taxon_name: str) -> str:
