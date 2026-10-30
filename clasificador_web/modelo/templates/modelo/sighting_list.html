@@ -1,0 +1,100 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Mis avistamientos · Vanartia{% endblock %}
+
+{% block content %}
+<main class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+    <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <a href="/" class="text-2xl font-bold tracking-tight text-gray-900">Vanartia</a>
+            <p class="mt-1 text-sm text-gray-500">Tu colección de avistamientos de mariposas</p>
+        </div>
+        <div class="flex items-center gap-4 text-sm">
+            <span class="text-gray-600">Hola, {{ request.user.first_name|default:request.user.username }}</span>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button class="font-medium text-indigo-600 hover:text-indigo-800" type="submit">Cerrar sesión</button>
+            </form>
+        </div>
+    </header>
+
+    {% if messages %}
+        <div class="mb-6 space-y-2" aria-live="polite">
+            {% for message in messages %}
+                <p class="rounded-lg border px-4 py-3 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-700{% else %}border-green-200 bg-green-50 text-green-700{% endif %}">
+                    {{ message }}
+                </p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <section class="mb-10 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
+        <div class="mb-5">
+            <h1 class="text-xl font-semibold text-gray-900">Registrar un avistamiento</h1>
+            <p class="mt-1 text-sm text-gray-500">Sube una fotografía y el modelo identificará el género.</p>
+        </div>
+        <form method="post" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label for="{{ form.image.id_for_label }}" class="mb-2 block text-sm font-medium text-gray-700">
+                    {{ form.image.label }}
+                </label>
+                <input
+                    type="file"
+                    name="{{ form.image.name }}"
+                    id="{{ form.image.id_for_label }}"
+                    accept="image/jpeg,image/png,image/webp"
+                    required
+                    class="block w-full rounded-lg border border-gray-300 bg-white text-sm text-gray-700 file:mr-4 file:border-0 file:bg-indigo-50 file:px-4 file:py-3 file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
+                >
+                <p class="mt-2 text-xs text-gray-500">{{ form.image.help_text }}</p>
+                {% for error in form.image.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <button type="submit" class="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                Subir y reconocer
+            </button>
+        </form>
+    </section>
+
+    <section>
+        <div class="mb-5 flex items-end justify-between gap-4">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">Mis avistamientos</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ sightings|length }} registro{{ sightings|length|pluralize:"s" }}</p>
+            </div>
+        </div>
+        {% if sightings %}
+            <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {% for sighting in sightings %}
+                    <article class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                        <img src="{% url 'sighting_image' sighting.pk %}" alt="Mariposa del género {{ sighting.genus }}" class="h-56 w-full object-cover">
+                        <div class="p-5">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-xs font-medium uppercase tracking-wide text-indigo-600">Género identificado</p>
+                                    <h3 class="mt-1 text-xl font-semibold text-gray-900">{{ sighting.genus }}</h3>
+                                    <p class="mt-1 text-sm text-gray-500">Confianza: {{ sighting.confidence|floatformat:1 }}%</p>
+                                </div>
+                                <form method="post" action="{% url 'delete_sighting' sighting.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-sm font-medium text-red-600 hover:text-red-800" aria-label="Eliminar avistamiento de {{ sighting.genus }}">
+                                        Eliminar
+                                    </button>
+                                </form>
+                            </div>
+                            <p class="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-400">{{ sighting.created_at|date:"d/m/Y H:i" }}</p>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
+                <p class="font-medium text-gray-700">Aún no tienes avistamientos</p>
+                <p class="mt-1 text-sm text-gray-500">Sube tu primera fotografía para comenzar tu colección.</p>
+            </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}
