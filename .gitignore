@@ -1,4 +1,8 @@
 __pycache__/
 *.py[cod]
 
+venv
 data/
+
+/clasificador_web/media/
+/clasificador_web/db.sqlite3

@@ -8,9 +8,9 @@ import requests
 
 API_URL = "https://api.inaturalist.org/v1/observations"
 SPECIES = [
-    "Anartia amathea",
+    #"Anartia amathea",
     #"Ascia monuste",
-    #"Battus polydamas",
+    "Battus polydamas",
     #"Danaus plexippus",
     #"Dryas iulia",
     #"Heliconius erato",
@@ -131,6 +131,8 @@ def main() -> None:
                 observations += len(result)
                 for observation in result:
                     observation_id = observation.get("id", "Desconocido")
+                    print(folder, type(folder), observation_id, type(observation_id))
+                    print((folder, observation_id) in existing_ids)
                     if (not isinstance(observation_id, int) or
                     (folder, observation_id) in existing_ids):
                         continue
@@ -173,6 +175,8 @@ def main() -> None:
             print(f"Fotografías: {len(photos)}")
             print(f"URL: {photo_url or 'No disponible'}")
             
+            print(folder, type(folder), observation_id, type(observation_id))
+            print((folder, observation_id) in existing_ids)
             if (folder, observation_id) in existing_ids:
                 print("Observación duplicada...")
                 continue

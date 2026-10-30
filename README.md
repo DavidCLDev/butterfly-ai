@@ -1,39 +1,30 @@
-# Identificador de mariposas 🦋
+# Vanartia 🦋
 
-## Descripción
+Aplicación Django para registrar avistamientos de mariposas. Al subir una
+fotografía, el modelo `clasificador_web/model/best.onnx` identifica el género
+y la aplicación conserva la imagen, el resultado y su confianza en la galería
+privada del usuario.
 
-Proyecto académico de visión artificial cuyo objetivo es identificar mediante
-imágenes diferentes especies de mariposas en Colombia.
+## Ejecutar localmente
 
-## Estado
-🚧 En desarrollo
+Desde la raíz del repositorio, instala las dependencias e inicia el servidor:
 
-## Tecnologías
-- Python
-- Conda
-- Git
-- iNaturalist
-
-## Librerías
-
-### Biblioteca estándar
-- pathlib
-- urlib.parse
-
-### Dependencias externas
-- requests
-
-## Cómo ejecutar el proyecto
-
-### 1️⃣ Clonar repositorio
-
-```cmd
-git clone https://github.com/DavidCLDev/butterfly-ai.git
-cd butterfly-ai
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install -r .\clasificador_web\requirements.txt
+cd .\clasificador_web
+python manage.py migrate
+python manage.py runserver
 ```
 
-### 2️⃣ Instalar librerías
+Registra una cuenta en `/registrar/` e inicia sesión. Las imágenes se guardan
+en `clasificador_web/media/` durante el desarrollo. El modelo usa ONNX Runtime
+en CPU y las etiquetas incluidas en sus metadatos: Anartia, Ascia, Battus,
+Danaus, Dryas, Heliconius, Morpho, Papilio, Phoebis y Vanessa.
 
-```cmd
-pip install requests
+Para ejecutar las pruebas:
+
+```powershell
+python manage.py test
 ```

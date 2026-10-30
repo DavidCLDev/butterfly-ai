@@ -82,8 +82,11 @@ def buscar_duplicados_entre_carpetas(carpeta1, carpeta2):
 if __name__ == "__main__":
     # --- CONFIGURACIÓN DE RUTAS ---
     root = Path(__file__).resolve().parents[1] / "data"
-    dirs = [root / "train", root / "val"]
+    dirs = [root / "val", root / "test"]
+    #BUTTERFLY = "Vanessa"
 
     for d in dirs[0].iterdir():
         if d.is_dir():
             buscar_duplicados_entre_carpetas(dirs[0] / d.name, dirs[1] / d.name)
+
+    #buscar_duplicados_entre_carpetas(dirs[0] / BUTTERFLY, dirs[1] / BUTTERFLY)
